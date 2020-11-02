@@ -91,11 +91,22 @@ proc pathToUri(path: string): string =
   # This is a modified copy of encodeUrl in the uri module. This doesn't encode
   # the / character, meaning a full file path can be passed in without breaking
   # it.
-  result = newStringOfCap(path.len + path.len shr 2) # assume 12% non-alnum-chars
-  for c in path:
+  var path2 = path
+  when defined(windows):
+    for i in 1..5:
+      path2.removePrefix {'/', '\\'}
+    path2.removePrefix "c:"
+    path2.removePrefix "C:"
+    for i in 1..5:
+      path2.removePrefix {'/', '\\'}
+    path2 = "/" & path2
+  path2 = path2.replace("c%3A/", "")
+  result = newStringOfCap(path2.len + path2.len shr 2) # assume 12% non-alnum-chars
+  for c in path2:
     case c
     # https://tools.ietf.org/html/rfc3986#section-2.3
     of 'a'..'z', 'A'..'Z', '0'..'9', '-', '.', '_', '~', '/': add(result, c)
+    of '\\': add(result, '/')
     else:
       add(result, '%')
       add(result, toHex(ord(c), 2))
@@ -127,6 +138,10 @@ proc getProjectFile(file: string): string =
   result = file.decodeUrl
   when defined(windows):
     result.removePrefix "/"   # ugly fix to "/C:/foo/bar" paths from "file:///C:/foo/bar"
+    result = result.replace("%3a", ":")
+    result = result.replace("%3A", ":")
+    result.removePrefix "c:"
+    result.removePrefix "C:"
   let (dir, _, _) = result.splitFile()
   var
     path = dir
